@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/portfolio
+    url: jdbc:postgresql://localhost:5432/event_aggregator
     username: admin
     password: toor
     driver-class-name: org.postgresql.Driver
@@ -23,4 +23,4 @@ spring:
 logging:
   level:
     root: INFO
-    com.rubenjp: DEBUG
+    com.rubdev: DEBUG
