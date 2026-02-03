@@ -3,11 +3,11 @@ version: '3.9'
 services:
   app:
     build: .
-    container_name: portfolio-rubenjp
+    container_name: event-aggregator-service
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/portfolio
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/event_aggregator
       SPRING_DATASOURCE_USERNAME: admin
       SPRING_DATASOURCE_PASSWORD: toor
       SPRING_DATA_REDIS_HOST: redis
@@ -16,13 +16,13 @@ services:
     depends_on:
       - db
       - redis
-    command: ["sh", "-c", "sleep 30 && java -jar app.jar"]
+    command: [ "sh", "-c", "sleep 30 && java -jar app.jar" ]
   db:
     image: postgres:16
-    container_name: portfolio-postgres
+    container_name: event-aggregator-postgres
     restart: always
     environment:
-      POSTGRES_DB: portfolio
+      POSTGRES_DB: event_aggregator
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: toor
     ports:
@@ -32,7 +32,7 @@ services:
 
   redis:
     image: redis:7.4
-    container_name: portfolio-redis
+    container_name: event-aggregator-redis
     ports:
       - "6379:6379"
     restart: always
