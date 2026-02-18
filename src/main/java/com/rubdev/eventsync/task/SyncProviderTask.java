@@ -12,15 +12,14 @@ import org.springframework.stereotype.Component;
 public class SyncProviderTask {
     private final ProviderService providerService;
 
-
-    @Scheduled(fixedRate = 900000) //15min
-    public void syncEventsFromProvider(){
+    @Scheduled(fixedRate = 900000) // 15min
+    public void syncEventsFromProvider() {
         log.info("TASK: -- syncEventsFromProvider -- INIT");
-        try{
+        try {
             this.providerService.syncWithProvider();
             log.info("TASK: -- syncEventsFromProvider -- SUCCESS");
-        }catch (Exception e){
-            log.error("TASK: -- syncEventsFromProvider -- ERROR: " + e.getMessage(),e);
+        } catch (Exception e) {
+            log.error("TASK: -- syncEventsFromProvider -- ERROR: {}", e.getMessage(), e);
         }
     }
 
