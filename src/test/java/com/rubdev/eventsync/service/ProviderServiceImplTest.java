@@ -1,14 +1,14 @@
 package com.rubdev.eventsync.service;
 
+import com.rubdev.eventsync.cache.EventCacheManager;
 import com.rubdev.eventsync.config.ProviderApiClient;
 import com.rubdev.eventsync.model.entity.EventEntity;
 import com.rubdev.eventsync.repository.EventRepository;
-import com.rubdev.eventsync.utils.ConnectionUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.*;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,10 +25,7 @@ class ProviderServiceImplTest {
     private EventRepository eventRepository;
 
     @Mock
-    private RedisTemplate<String, Object> redisTemplate;
-
-    @Mock
-    private ValueOperations<String, Object> valueOps;
+    private EventCacheManager eventCacheManager;
 
     @InjectMocks
     private ProviderServiceImpl providerService;
@@ -36,15 +33,10 @@ class ProviderServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
     }
 
-    /**
-     * THIS TEST THE HAPPY PATH WHERE WE GET AN EVENT AND CACHE IT
-     */
     @Test
     void testSyncWithProvider_ValidXml_SavesEventsAndCaches() {
-        //THIS XML EXAMPLE COMES FROM THE ONES THAT RETURNS THE PROVIDER
         String xmlResponse = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <planList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.0">
@@ -64,7 +56,6 @@ class ProviderServiceImplTest {
                 </planList>
                 """;
 
-        //SERVICE CALL MOCKUPS
         when(apiClient.fetchProviderEvents()).thenReturn(xmlResponse);
         when(eventRepository.findByBasePlanIdAndStartDateAndEndDate(anyLong(), any(), any()))
                 .thenReturn(Optional.empty());
@@ -73,19 +64,15 @@ class ProviderServiceImplTest {
 
         providerService.syncWithProvider();
 
-        //VALIDATONS
         verify(eventRepository, atLeastOnce()).save(any(EventEntity.class));
-        verify(valueOps, times(1))
-                .set(eq(ConnectionUtils.CACHE_KEY.getValue()), anyList(), any());
+        verify(eventCacheManager, times(1)).putEvents(anyList());
     }
 
-    /**
-     * THIS TEST WHAT HAPPENS IF THE RESPONSE IS EMPTY
-     */
     @Test
     void testSyncWithProvider_EmptyResponse_NoAction() {
         when(apiClient.fetchProviderEvents()).thenReturn("");
         providerService.syncWithProvider();
         verifyNoInteractions(eventRepository);
+        verifyNoInteractions(eventCacheManager);
     }
 }

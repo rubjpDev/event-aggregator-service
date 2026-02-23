@@ -1,14 +1,14 @@
 package com.rubdev.eventsync.service;
 
+import com.rubdev.eventsync.cache.EventCacheManager;
 import com.rubdev.eventsync.model.entity.EventEntity;
 import com.rubdev.eventsync.model.response.EventResponseModel;
 import com.rubdev.eventsync.repository.EventRepository;
-import com.rubdev.eventsync.utils.ConnectionUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.*;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,13 +19,7 @@ import static org.mockito.Mockito.*;
 class EventServiceImplTest {
 
     @Mock
-    private EventRepository eventRepository;
-
-    @Mock
-    private RedisTemplate<String, Object> redisTemplate;
-
-    @Mock
-    private ValueOperations<String, Object> valueOps;
+    private EventCacheManager eventCacheManager;
 
     @InjectMocks
     private EventServiceImpl eventService;
@@ -33,17 +27,12 @@ class EventServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
     }
 
-    /**
-     * TEST THE HAPPY PATH, EVERYTHING WORKING EVEN CACHE
-     */
     @Test
     void testGetEvents_FiltersByDateRange() {
-        // GEN MOCKUPS
         LocalDateTime start = LocalDateTime.of(2021, 7, 31, 20, 0);
-        LocalDateTime end   = LocalDateTime.of(2021, 7, 31, 21, 20);
+        LocalDateTime end = LocalDateTime.of(2021, 7, 31, 21, 20);
 
         EventEntity inside = new EventEntity();
         inside.setId(1L);
@@ -61,26 +50,19 @@ class EventServiceImplTest {
         outside.setMinPrice(15.0);
         outside.setMaxPrice(30.0);
 
-        when(redisTemplate.opsForValue().get(ConnectionUtils.CACHE_KEY.getValue()))
-                .thenReturn(List.of(inside, outside));
-
+        when(eventCacheManager.getEvents(start, end)).thenReturn(List.of(inside, outside));
 
         EventResponseModel response = eventService.getEvents(start, end);
 
-        // ASSERTIONS
         assertThat(response.getData().getEvents()).hasSize(1);
         assertThat(response.getData().getEvents().getFirst().getTitle()).isEqualTo("title1");
     }
 
-    /**
-     * TEST THE RARE CASE OF CACHE BEING EMPTY
-     */
     @Test
     void testGetEvents_UsesDbFallbackWhenCacheEmpty() {
         LocalDateTime start = LocalDateTime.now().minusDays(1);
-        LocalDateTime end   = LocalDateTime.now().plusDays(1);
+        LocalDateTime end = LocalDateTime.now().plusDays(1);
 
-        // MOCK
         EventEntity event = new EventEntity();
         event.setTitle("test");
         event.setStartDate(LocalDateTime.now());
@@ -88,8 +70,7 @@ class EventServiceImplTest {
         event.setMinPrice(10.0);
         event.setMaxPrice(20.0);
 
-        when(redisTemplate.opsForValue().get(ConnectionUtils.CACHE_KEY.getValue())).thenReturn(null);
-        when(eventRepository.findByStartDateBetween(start, end)).thenReturn(List.of(event));
+        when(eventCacheManager.getEvents(start, end)).thenReturn(List.of(event));
 
         EventResponseModel response = eventService.getEvents(start, end);
 
