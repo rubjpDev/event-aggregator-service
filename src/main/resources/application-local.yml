@@ -12,8 +12,6 @@ spring:
       hibernate:
         format_sql: true
 
-  cache:
-    type: redis
 
   data:
     redis:
@@ -33,3 +31,9 @@ logging:
   level:
     root: INFO
     com.rubdev: DEBUG
+
+app:
+  cache:
+    ttl-minutes: 20
+    lock-timeout-seconds: 5
+    key-prefix: events
