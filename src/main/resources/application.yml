@@ -33,6 +33,8 @@ logging:
     com.rubdev: DEBUG
 
 app:
+  provider:
+    url: ${PROVIDER_URL:http://localhost:9090/api/events}
   cache:
     ttl-minutes: 20
     lock-timeout-seconds: 5
