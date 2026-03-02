@@ -1,145 +1,117 @@
 # Event Aggregator Service
 
-A high-performance microservice built with Java 25 and Spring Boot 3.3 that aggregates event data from external providers with robust caching, fault tolerance, and scalability features.
+A backend microservice that aggregates event data from an external XML provider, caches it in Redis, and exposes a RESTful search API. Built as a portfolio project to demonstrate production-ready patterns in Java 25 and Spring Boot.
 
-## Project Overview
+---
 
-This service demonstrates patterns for integrating with external APIs while maintaining high availability and performance. It implements a resilient data synchronization strategy that ensures zero downtime even when external providers are unavailable.
+## Why This Project
 
-Key Features:
-- Sub-second response times with Redis caching
-- Automatic background synchronization with retry logic
-- Fault-tolerant design with database fallback
-- RESTful API for event searching with time-range filtering
-- Fully containerized with Docker Compose
-- Production-ready architecture
+I designed this service to solve a common backend challenge: consuming unreliable external APIs while guaranteeing fast, available reads for end users. The focus is on resilient data synchronization, a manual cache-aside pattern, and a clean layered architecture — without reaching for heavyweight frameworks until they are warranted.
 
 ---
 
 ## Architecture & Design
 
-### System Design Overview
+The service implements a **dual-layer persistence strategy** combining Redis for speed and PostgreSQL for reliability.
 
-The service implements a **dual-layer persistence strategy** combining Redis for speed and PostgreSQL for reliability:
-
-#### Scenario 1: Provider Available
+### Scenario 1: Provider Available
 
 When the external provider is operational:
-1. **Background Sync Task** fetches data from the provider with exponential backoff retry logic
+
+1. A **background sync task** fetches data from the provider with retry logic
 2. Data is persisted to **PostgreSQL** for long-term storage
-3. Data is cached in **Redis** for ultra-fast retrieval
+3. Data is written to **Redis** with a configurable TTL
 4. API requests to `/api/v1/search` are served directly from cache
 
-The synchronization runs continuously at configured intervals, keeping data fresh and up-to-date.
+![Provider Available](./docs/CASE1.png)
+
+The synchronization runs on a fixed schedule, keeping data continuously fresh.
 
 ---
 
-#### Scenario 2: Provider Unavailable
+### Scenario 2: Provider Unavailable
 
 When the external provider experiences downtime:
-1. The sync task detects the failure (e.g., HTTP 503, timeout)
-2. The system automatically **rebuilds the cache from PostgreSQL**
-3. Users continue receiving responses without interruption
+
+1. The sync task detects the failure (HTTP 5xx, timeout) after 5 retries
+2. The sync aborts cleanly — the read path is unaffected
+3. The service continues serving responses from Redis or rebuilds cache from PostgreSQL
 4. **Zero downtime** is maintained throughout the outage
 
-This design ensures resilience and continuous service availability.
+![Provider Unavailable](./docs/CASE2.png)
 
 ---
 
-## Quick Start
+## Tech Stack
+
+| Component | Technology |
+|---|---|
+| Language | Java 25 |
+| Framework | Spring Boot 3.5 |
+| Database | PostgreSQL 16 |
+| Cache | Redis 7.4 |
+| Build | Maven |
+| Containerization | Docker & Docker Compose |
+| Observability | Micrometer Tracing + Logstash |
+
+---
+
+## Getting Started
 
 ### Prerequisites
+
 - **Docker** & **Docker Compose**
 - **Make**
-- **Java 25+**
-- **Maven 3.9+**
+- **Java 25+** (for local development)
+- **Maven 3.9+** (or use the included `mvnw` wrapper)
 
-### Running the Application
-
-From the project root directory:
+### Run with Docker (recommended)
 
 ```bash
-# Build the Java application
 make build
-
-# Start all services (app, PostgreSQL, Redis)
 make run
 ```
 
-The API will be available at `http://localhost:8080`
+The API will be available at `http://localhost:8080`.
 
-### API Endpoint
+### Local development
+
+```bash
+# Start only infrastructure
+make infra
+
+# Run the application with the local profile
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+### Provider URL configuration
+
+The provider URL is externalized and can be overridden at runtime:
+
+```bash
+# Docker
+PROVIDER_URL=https://your-provider.com/api/events make run
+
+# Local
+PROVIDER_URL=https://your-provider.com/api/events ./mvnw spring-boot:run
+```
+
+---
+
+## API Usage
 
 **Search Events:**
-```bash
+
+```
 GET /api/v1/search?starts_at=2024-01-01T00:00:00&ends_at=2024-12-31T23:59:59
 ```
 
-**Parameters:**
-- `starts_at` (required): ISO 8601 datetime for range start
-- `ends_at` (required): ISO 8601 datetime for range end
+| Parameter | Required | Description |
+|---|---|---|
+| `starts_at` | Yes | ISO 8601 datetime — range start |
+| `ends_at` | Yes | ISO 8601 datetime — range end |
 
-**Response:** JSON array of events within the specified time range
-
----
-
-## Technology Stack
-
-| Component | Technology |
-|-----------|-----------|
-| **Language** | Java 25 |
-| **Framework** | Spring Boot 3.3 |
-| **Database** | PostgreSQL |
-| **Cache** | Redis |
-| **Build Tool** | Maven |
-| **Containerization** | Docker & Docker Compose |
-| **API Design** | RESTful with OpenAPI spec |
-
----
-
-## Design Decisions & Trade-offs
-
-### Caching Strategy
-- **Redis** provides millisecond-level response times for read-heavy workloads
-- **TTL-based invalidation** ensures data freshness while minimizing provider API calls
-- **Cache-aside pattern** with database fallback guarantees availability
-
-### Fault Tolerance
-- **Retry logic with exponential backoff** handles transient provider failures
-- **Database-backed cache rebuilding** ensures service continuity during extended outages
-- **Graceful degradation** maintains functionality even with stale data
-
-### Scalability Considerations
-- **Stateless application design** enables horizontal scaling behind a load balancer
-- **Connection pooling** (HikariCP) optimizes database resource usage
-- **Async I/O** for external API calls prevents thread blocking
-
----
-
-## Performance & Scalability
-
-### Handling High Traffic (5k-10k RPS)
-
-Strategies implemented:
-- **Redis caching** reduces database load by 95%+
-- **Stateless architecture** allows deploying multiple instances
-- **Load balancing** distributes traffic across application replicas
-- **Database connection pooling** prevents connection exhaustion
-
-### Large Dataset Optimization
-
-For thousands of events with complex zone data:
-- **Batch inserts** reduce database round trips
-- **Pagination support** limits memory footprint
-- **Indexed queries** on timestamp fields for fast range searches
-- **Lazy loading** of related entities
-
-### Future Enhancements
-
-- **Event-driven architecture** with webhooks (if provider supports notifications)
-- **AWS Lambda integration** for serverless scaling
-- **GraphQL API** for flexible client queries
-- **Distributed caching** with Redis Cluster for multi-region deployments
+**Response:** JSON array of events within the specified time range.
 
 ---
 
@@ -148,51 +120,58 @@ For thousands of events with complex zone data:
 ```
 event-aggregator-service/
 ├── src/main/java/com/rubdev/eventsync/
+│   ├── cache/            # Cache management (RedisTemplate-based cache-aside)
+│   ├── config/           # Spring configuration & @ConfigurationProperties
 │   ├── controller/       # REST API endpoints
+│   ├── model/            # Domain entities & provider XML DTOs
+│   ├── repository/       # Data access layer (Spring Data JPA)
 │   ├── service/          # Business logic & orchestration
-│   ├── repository/       # Data access layer
-│   ├── model/            # Domain entities
-│   ├── config/           # Spring configuration
-│   └── scheduler/        # Background sync tasks
-├── docker-compose.yml    # Multi-container orchestration
-├── Dockerfile            # Application container image
-├── Makefile              # Build & run automation
-└── pom.xml               # Maven dependencies
+│   ├── task/             # Scheduled background sync
+│   └── utils/            # Application constants
+├── docs/
+│   ├── adr/              # Architecture Decision Records
+│   ├── CASE1.png         # Architecture diagram — provider available
+│   └── CASE2.png         # Architecture diagram — provider unavailable
+├── docker-compose.yml
+├── Dockerfile
+├── Makefile
+└── pom.xml
 ```
 
 ---
 
 ## Testing
 
-Run the test suite:
 ```bash
 mvn test
 ```
 
-The project includes:
-- **Unit tests** for service layer logic
-- **Integration tests** for repository operations
-- **API tests** for endpoint validation
+The test suite covers:
+
+- **Unit tests** — service layer logic and cache manager behaviour
+- **Integration tests** — repository operations
+- **API tests** — endpoint validation and error handling
 
 ---
 
-## License
+## Future Improvements
 
-This project is part of my personal portfolio and is available for review and demonstration purposes.
+- Bundled mock provider for fully self-contained demo runs
+- Circuit breaker if retry complexity grows beyond current scope (Resilience4j)
+- Exponential backoff with jitter to reduce thundering-herd against recovering providers
+- Indexed pagination on the search endpoint for large datasets
+- Redis Cluster configuration for multi-region deployments
 
 ---
 
 ## Author
 
-Rubén Juárez Pérez
+**Rubén Juárez Pérez**
 
-Java Engineer specializing in microservices architecture, distributed systems, and high-performance backend development.
+Software Engineer — 2026.
 
 ---
 
-## Additional Resources
+## License
 
-- [API Documentation](https://app.swaggerhub.com/apis-docs/luis-pintado-feverup/backend-test/1.0.0)
-- [System Design Diagrams](./docs/)
-
-
+MIT — see [LICENSE](./LICENSE)
