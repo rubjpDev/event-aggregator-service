@@ -15,7 +15,7 @@ public class ProviderApiClient {
 
     private final RestTemplate restTemplate;
     private static final int MAX_RETRIES = 5;
-    private static final long RETRY_DELAY = 5000; // THIS NUMBER IN MS
+    private static final long RETRY_DELAY_MS = 5000;
 
     public String fetchProviderEvents() {
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -28,7 +28,7 @@ public class ProviderApiClient {
                 log.warn("CONNECTION ERROR: {}", r.getMessage());
             }
             try {
-                Thread.sleep(RETRY_DELAY);
+                Thread.sleep(RETRY_DELAY_MS);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 log.error("-- THREAD ERROR, RETRY INTERRUPTED --");
